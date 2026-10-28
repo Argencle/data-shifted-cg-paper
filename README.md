@@ -1,5 +1,7 @@
 # Data Availability - Shifted CG paper
 
+[![DOI](https://zenodo.org/badge/1420926348.svg)](https://doi.org/10.5281/zenodo.23748330)
+
 This repository contains the raw ADDA results, aggregated CSV datasets, and Python scripts used to generate the figures for the shifted CG paper.
 
 The CSV datasets are provided, so you can reproduce the figures without extracting the raw data or compiling ADDA.

@@ -78,7 +78,8 @@ OUTPUT_FILE = None
 
 
 def get_backend_from_path(path):
-    path = str(path)
+    # CSV paths may have been generated on Windows or POSIX.
+    path = str(path).replace("\\", "/")
 
     if path.startswith("2Dgrid_SEQ/"):
         return "SEQ", None

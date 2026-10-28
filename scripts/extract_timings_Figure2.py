@@ -2,7 +2,7 @@
 """
 Extract ADDA timings from Figure2 benchmark directories into one tidy CSV.
 
-Expected directory layout (root = data-shifted-m-paper/Figure2):
+Expected directory layout (root = datas/Figure2):
 
     fixed_Nm_GPU/
         OCL_BLAS/
@@ -22,6 +22,14 @@ Expected directory layout (root = data-shifted-m-paper/Figure2):
             ...
         Nproc=16/
         Nproc=128/
+            Nm=.../.../log
+            2nodes/Nproc=128/Nm=.../.../log
+            4nodes/Nproc=128/Nm=.../.../log
+
+The nnodes column distinguishes the multi-node runs; it is blank when the
+directory layout does not specify the node count.
+Each group may also contain Nm=1_independent/log (or a run*/log inside it).
+The solver column labels these independent runs as BiCG and Nm=N runs as SBiCG.
 
 Usage:
     python3 extract_timings_Figure2.py
@@ -40,6 +48,7 @@ from typing import Optional
 # ---------------------------------------------------------------------------
 
 FLOAT_RE = r"([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?)"
+NM_DIR_RE = re.compile(r"Nm=(\d+)(?:_independent)?")
 
 
 def search_int(text: str, label: str) -> Optional[int]:
@@ -97,8 +106,8 @@ def parse_log(log_path: Path) -> dict:
 
 
 def nm_value(path: Path) -> int:
-    """Extract integer N from a directory called Nm=N."""
-    m = re.fullmatch(r"Nm=(\d+)", path.name)
+    """Extract integer N from Nm=N or Nm=N_independent."""
+    m = NM_DIR_RE.fullmatch(path.name)
     if not m:
         raise ValueError(f"Invalid Nm directory name: {path}")
     return int(m.group(1))
@@ -110,10 +119,14 @@ def find_one_log(nm_dir: Path) -> Optional[Path]:
 
     Expected pattern:
         Nm=X/run.../log
+        Nm=1_independent/log
 
     If several logs are found, do not silently choose one.
     """
     logs = sorted(nm_dir.glob("run*/log"))
+    direct_log = nm_dir / "log"
+    if direct_log.is_file():
+        logs.insert(0, direct_log)
 
     if not logs:
         print(f"[WARNING] No log found in {nm_dir}", file=sys.stderr)
@@ -135,6 +148,7 @@ def collect_group(
     family: str,
     backend: str,
     nproc: Optional[int],
+    nnodes: Optional[int] = None,
 ) -> list[dict]:
     """Collect all Nm logs from one benchmark group."""
     rows = []
@@ -146,10 +160,10 @@ def collect_group(
 
     nm_dirs = []
     for p in base_dir.iterdir():
-        if p.is_dir() and re.fullmatch(r"Nm=\d+", p.name):
+        if p.is_dir() and NM_DIR_RE.fullmatch(p.name):
             nm_dirs.append(p)
 
-    nm_dirs.sort(key=nm_value)
+    nm_dirs.sort(key=lambda p: (nm_value(p), p.name))
 
     for nm_dir in nm_dirs:
         log_path = find_one_log(nm_dir)
@@ -161,7 +175,9 @@ def collect_group(
         row = {
             "family": family,  # GPU / SEQ / MPI
             "backend": backend,  # OCL_BLAS / OCL / SEQ / MPI
+            "solver": "BiCG" if nm_dir.name.endswith("_independent") else "SBiCG",
             "nproc": nproc,  # blank for GPU/SEQ
+            "nnodes": nnodes,  # blank when unspecified
             "Nm": nm_value(nm_dir),
             **values,
             "log_file": str(log_path),
@@ -227,6 +243,16 @@ def collect_all(root: Path) -> list[dict]:
             nproc=nproc,
         )
 
+    # Additional 128-process runs distributed over two or four nodes.
+    for nnodes in (2, 4):
+        rows += collect_group(
+            mpi_root / "Nproc=128" / f"{nnodes}nodes" / "Nproc=128",
+            family="MPI",
+            backend="MPI",
+            nproc=128,
+            nnodes=nnodes,
+        )
+
     # Stable plot-friendly order.
     family_order = {"GPU": 0, "SEQ": 1, "MPI": 2}
     backend_order = {"OCL_BLAS": 0, "OCL": 1, "SEQ": 2, "MPI": 3}
@@ -236,6 +262,8 @@ def collect_all(root: Path) -> list[dict]:
             family_order.get(r["family"], 99),
             backend_order.get(r["backend"], 99),
             r["nproc"] if r["nproc"] is not None else 0,
+            r["nnodes"] if r["nnodes"] is not None else 0,
+            0 if r["solver"] == "SBiCG" else 1,
             r["Nm"],
         )
     )
@@ -250,7 +278,9 @@ def collect_all(root: Path) -> list[dict]:
 FIELDNAMES = [
     "family",
     "backend",
+    "solver",
     "nproc",
+    "nnodes",
     "Nm",
     "iterations",
     "total_wall_time",
@@ -288,14 +318,22 @@ def main() -> None:
         sys.exit(1)
 
     rows = collect_all(root)
+    if not rows:
+        sys.exit(
+            f"No timing data found under {root}. Extract the raw data archives "
+            "first with bash scripts/unzip_data.sh. Existing CSV left unchanged."
+        )
     write_csv(rows, output)
 
     counts = {}
     for row in rows:
         if row["family"] == "MPI":
             key = f"MPI-{row['nproc']}"
+            if row["nnodes"] is not None:
+                key += f"-{row['nnodes']}nodes"
         else:
             key = row["backend"]
+        key += f"-{row['solver']}"
         counts[key] = counts.get(key, 0) + 1
 
     print(f"Wrote {len(rows)} rows to: {output}")

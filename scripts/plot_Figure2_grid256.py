@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -12,8 +14,9 @@ plt.rcParams["font.size"] = 11
 GRID = 256
 FIT_EXAMPLE = "OCL"  # "SEQ", "OCL", "OCL_BLAS", "MPI4", "MPI16", "MPI128"
 
-INPUT_FILE = f"fixed_grid=256/figure1_timings.csv"
-OUTPUT_FILE = f"Figure2_grid{GRID}.pdf"
+BASE_DIR = Path(__file__).resolve().parents[1]
+INPUT_FILE = BASE_DIR / "datas" / "Figure2" / f"figure2_timings_grid{GRID}.csv"
+OUTPUT_FILE = BASE_DIR / "figures" / f"Figure2_grid{GRID}.pdf"
 
 # ============================================================
 # Load data
@@ -231,10 +234,13 @@ ax.legend(frameon=False, fontsize=9)
 
 plt.tight_layout()
 
+OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
 fig.savefig(
     OUTPUT_FILE,
     bbox_inches="tight",
     dpi=300,
 )
+
+print(f"Figure saved to: {OUTPUT_FILE}")
 
 plt.show()

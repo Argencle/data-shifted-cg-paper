@@ -187,7 +187,8 @@ for crosssec in crosssec_files:
                 "m_real": n,
                 "m_imag": k,
                 "Cext": cext,
-                "path": str(crosssec.relative_to(ROOT)),
+                # Keep CSV paths portable across operating systems.
+                "path": crosssec.relative_to(ROOT).as_posix(),
             }
         )
 

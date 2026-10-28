@@ -3,7 +3,7 @@
 
 Expected layout, e.g. for grid 256:
 
-    fixed_grid=256/
+    datas/Figure2/fixed_grid=256/
         SEQ/
             Nm=1/.../log
             Nm=2/.../log
@@ -20,8 +20,10 @@ Expected layout, e.g. for grid 256:
             ...
 
 Usage:
-    python3 extract_timings_fixed_grid.py fixed_grid=256
-    python3 extract_timings_fixed_grid.py fixed_grid=256 -o figure1_timings_grid256.csv
+    python scripts/extract_timings_Figure2_grid256.py
+    python scripts/extract_timings_Figure2_grid256.py /path/to/fixed_grid=256 -o timings.csv
+
+Default output: datas/Figure2/figure2_timings_grid256.csv
 """
 
 from __future__ import annotations
@@ -32,6 +34,10 @@ import re
 import sys
 from pathlib import Path
 from typing import Optional
+
+DATA_DIR = Path(__file__).resolve().parents[1] / "datas" / "Figure2"
+DEFAULT_ROOT = DATA_DIR / "fixed_grid=256"
+DEFAULT_OUTPUT = DATA_DIR / "figure2_timings_grid256.csv"
 
 FLOAT_RE = r"([0-9]+(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?)"
 
@@ -101,7 +107,8 @@ def collect_group(base_dir: Path, family: str, backend: str, nproc: Optional[int
             "nproc": nproc,
             "Nm": nm_value(nm_dir),
             **values,
-            "log_file": str(log_path),
+            # Keep CSV paths portable across Windows and POSIX systems.
+            "log_file": log_path.as_posix(),
         }
 
         required = [
@@ -164,14 +171,14 @@ def write_csv(rows: list[dict], output: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Extract ADDA timings from a fixed-grid benchmark directory.")
-    parser.add_argument("root", type=Path, help="Benchmark root, e.g. fixed_grid=256")
-    parser.add_argument("-o", "--output", type=Path, default=None, help="Output CSV")
+    parser.add_argument("root", type=Path, nargs="?", default=DEFAULT_ROOT, help="Benchmark root (default: %(default)s)")
+    parser.add_argument("-o", "--output", type=Path, default=DEFAULT_OUTPUT, help="Output CSV (default: %(default)s)")
     args = parser.parse_args()
 
     if not args.root.is_dir():
         parser.error(f"Root directory does not exist: {args.root}")
 
-    output = args.output or (args.root / "figure1_timings.csv")
+    output = args.output
     rows = collect_all(args.root)
     write_csv(rows, output)
 

@@ -1,9 +1,14 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
-cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+# Move to the repository root
+CDPATH= cd "$(dirname "$0")/.."
 
-while IFS= read -r -d '' archive; do
-    unzip -n "$archive" -d "$(dirname -- "$archive")"
-    rm -- "$archive"
-done < <(find datas -type f -name '*.zip' -print0)
+# Extract all ZIP archives and remove them after successful extraction
+find datas -type f -name '*.zip' -exec sh -c '
+    set -eu
+    for archive do
+        unzip -n "$archive" -d "$(dirname "$archive")"
+        rm "$archive"
+    done
+' sh {} +

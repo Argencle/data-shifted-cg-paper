@@ -50,7 +50,7 @@ Use this workflow to regenerate the CSV files from the archived simulation resul
 ### 1. Extract the raw data
 
 ```bash
-bash scripts/unzip_data.sh
+sh scripts/unzip_data.sh
 ```
 
 The script finds ZIP archives recursively under `datas/` and extracts each one beside its ZIP file. Each ZIP file is deleted only after a successful extraction.
